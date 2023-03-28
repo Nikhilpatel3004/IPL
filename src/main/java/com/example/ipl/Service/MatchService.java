@@ -2,10 +2,13 @@ package com.example.ipl.Service;
 
 import com.example.ipl.DTO.MatchDTO;
 import com.example.ipl.DTO.MatchResultDTO;
+import com.example.ipl.Enum.BatOrBall;
 import com.example.ipl.Model.Batsman;
 import com.example.ipl.Model.Bowler;
+import com.example.ipl.Model.Elect;
 import com.example.ipl.Repo.BatsmanRepo;
 import com.example.ipl.Repo.BowlerRepo;
+import com.example.ipl.Repo.ElectRepo;
 import com.example.ipl.Utility.AbilityToHit;
 import com.example.ipl.Utility.RandomUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -34,10 +37,10 @@ public class MatchService {
     @Autowired
     MongoTemplate mongoTemplate;
 
+    @Autowired
+    private ElectRepo electRepo;
 
-
-
-     public  Integer Inning(List<String> BatTeam,List<String> BowlTeam,int overs){
+     public  Integer Inning(List<String> BatTeam,List<String> BowlTeam,int overs,Integer Target){
 
          int striker = 0;
          int run = 0;
@@ -46,6 +49,7 @@ public class MatchService {
          int lastoverRun = 0;
          int totalRun  = 0;
          int wicketinlastover = 0;
+         boolean stopGame = false;
          int batrate = calculateBatRate(striker,BatTeam.get(striker)) ;
          for(int  i = 0;i<overs;i++){
 
@@ -61,7 +65,7 @@ public class MatchService {
                     int output = outputOfBall(batrate,bowlrate);
 
                     if(output == 7){
-
+                        wicket++;
                         System.out.println(totalRun+ "/" +wicket + "  " + getplayerName(striker,BatTeam.get(striker)) + " score " + run );
                         //System.out.println("Wicket number " + wicket + "The batsman run is " + run);
                         Query query = new Query(Criteria.where("batsmanId").is(BatTeam.get(striker)));
@@ -70,7 +74,7 @@ public class MatchService {
 
                         wicketinlastover++;
                         striker++;
-                        wicket++;
+
                         run = 0;
 
                         if(wicket == 11){
@@ -82,6 +86,10 @@ public class MatchService {
                         lastoverRun+=output;
                         run += output;
                         totalRun += output ;
+                        if(totalRun > Target){
+                            stopGame = true;
+                            break;
+                        }
                     }
              }
 
@@ -90,6 +98,10 @@ public class MatchService {
              mongoTemplate.updateFirst(query,update,Bowler.class);
              lastoverRun = 0;
              wicketinlastover = 0;
+             if(stopGame){
+                 System.out.println(totalRun+ "/" +wicket + "  " + getplayerName(striker,BatTeam.get(striker)) + " score " + run +"*");
+                 break;
+             }
 
          }
 
@@ -151,20 +163,40 @@ public class MatchService {
 
     public MatchResultDTO matchStart(MatchDTO matchDTO){
 
-         String Team1Name = matchDTO.getTeam1();
-         String Team2Name = matchDTO.getTeam2();
+        String electId = matchDTO.getElectId();
+
+        Optional<Elect> byId = electRepo.findById(electId);
+        String Team1Name;
+        String Team2Name;
+        if(byId.isPresent()){
+            BatOrBall batOrBall = byId.get().getBatOrBall();
+         if (batOrBall == BatOrBall.BAT){
+              Team1Name = byId.get().getTeamName();
+              Team2Name = byId.get().getLoseTeamName();
+         }else{
+             Team2Name = byId.get().getTeamName();
+             Team1Name = byId.get().getLoseTeamName();
+         }
+
+        }else{
+            throw  new RuntimeException("ElectId is not valid");
+        }
+
         Integer overs = matchDTO.getOvers();
           List<String> Team1 = teamService.getPlaying11(Team1Name);
           List<String> Team2 = teamService.getPlaying11(Team2Name);
 
 
+
+
+
         System.out.println();
         System.out.println("First Inning Start");
-        Integer firstInningRun  = Inning(Team1, Team2, overs);
+        Integer firstInningRun  = Inning(Team1, Team2, overs,Integer.MAX_VALUE);
         System.out.println();
         System.out.println("Second Inning Start");
         System.out.println();
-        Integer secondInningRun  = Inning(Team2,Team1,overs);
+        Integer secondInningRun  = Inning(Team2,Team1,overs,firstInningRun+1);
 
         MatchResultDTO matchResultDTO = new MatchResultDTO();
 

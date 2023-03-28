@@ -1,16 +1,15 @@
 package com.example.ipl.DTO;
 
+import com.example.ipl.Enum.Toss;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import lombok.NonNull;
+
 
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class MatchDTO {
-
-    private Integer overs;
-    @NonNull
-    private String electId;
+public class TossDTO {
+    private String teamName;
+    private Toss toss;
 }
